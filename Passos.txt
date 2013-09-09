@@ -1,0 +1,159 @@
+Usaremos como base o projeto 'jsf-login' que já possui as dependências do Arquillian. 
+Lembrando que utilizamos o JBOSS AS 7, caso queira trocar deve mudar as dependências do pom e arquillian.xml.
+Antes de começar deve trocar os devidos diretórios no arquillian.xml.
+
+
+
+
+- Iremos adicionar a extensão Arquillian Drone adicionando as dependências no pom.xml
+
+
+///////////////////////////////////////////////////////////////////////////////////////
+   <dependencyManagement>
+      <dependencies>
+        ...
+        <dependency>
+            <groupId>org.jboss.arquillian.extension</groupId>
+            <artifactId>arquillian-drone-bom</artifactId>
+            <version>1.0.0.Final</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+      </dependencies>
+   </dependencyManagement>
+        
+   <dependencies>
+        ...
+        <dependency>
+            <groupId>org.jboss.arquillian.extension</groupId>
+            <artifactId>arquillian-drone-impl</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.arquillian.extension</groupId>
+            <artifactId>arquillian-drone-selenium</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.arquillian.extension</groupId>
+            <artifactId>arquillian-drone-selenium-server</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-java</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-server</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.mortbay.jetty</groupId>
+                    <artifactId>servlet-api-2.5</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+   </dependencies>
+
+
+///////////////////////////////////////////////////////////////////////////////
+
+
+- Agora podemos criar um simples teste...
+Vamos criar a classe LoginScreenSeleniumTest.
+
+
+
+
+/////////////////////////////////////////////////////////////////////////
+import java.io.File;
+import org.jboss.arquillian.container.test.api.Deployment;
+import org.jboss.arquillian.junit.Arquillian;
+import org.jboss.shrinkwrap.api.ShrinkWrap;
+import org.jboss.shrinkwrap.api.asset.EmptyAsset;
+import org.jboss.shrinkwrap.api.asset.StringAsset;
+import org.jboss.shrinkwrap.api.spec.WebArchive;
+import org.junit.runner.RunWith;
+
+
+@RunWith(Arquillian.class)
+public class LoginScreenSeleniumTest {
+    private static final String WEBAPP_SRC = "src/main/webapp";
+    
+    @Deployment(testable = false)
+    public static WebArchive createDeployment() {
+        return ShrinkWrap.create(WebArchive.class, "login.war")
+            .addClasses(Credentials.class, User.class, LoginController.class)
+            .addAsWebResource(new File(WEBAPP_SRC, "login.xhtml"))
+            .addAsWebResource(new File(WEBAPP_SRC, "home.xhtml"))
+            .addAsWebInfResource(EmptyAsset.INSTANCE, "beans.xml")
+            .addAsWebInfResource(
+                new StringAsset("<faces-config version=\"2.0\"/>"),
+                "faces-config.xml");
+    }
+}
+/////////////////////////////////////////////////////////////////////////
+
+
+Como queremos testar a interface da aplicação devemos então rodar o teste em modo cliente adicionando ‘testable = false’ na annotation @Deployment ou a annotation @RunAsClient no método. 
+
+
+
+
+-Agora injetaremos o driver do Selenium e a URL da nossa aplicação.
+
+
+///////////////////////////////////////////
+@Drone
+DefaultSelenium browser;
+
+
+@ArquillianResource
+URL deploymentUrl;
+//////////////////////////////////////////
+
+
+O DefaultSelenium inicia o firefox no seu diretório padrão. Para mudar o browser para o chrome, por exemplo, basta adicionar as seguintes linhas no ‘src/test/resources/arquillian.xml' e substituir o <PATH_CHROME> pelo diretório do seu 'chrome.exe'.
+
+
+//////////////////////////////////////////////////////////////////////
+<extension qualifier="selenium">
+        <property name="browser">*googlechrome <PATH_CHROME></property>
+    </extension>
+//////////////////////////////////////////////////////////////////////
+
+
+- Agora podemos criar o nosso teste.
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+@Test
+    public void should_login_successfully() {
+        browser.open(deploymentUrl + "login.jsf");
+
+
+        browser.type("id=loginForm:username", "demo");
+        browser.type("id=loginForm:password", "demo");
+        browser.click("id=loginForm:login");
+        browser.waitForPageToLoad("15000");
+
+
+        Assert.assertTrue("User should be logged in!",
+            browser.isElementPresent("xpath=//li[contains(text(), 'Welcome')]"));
+        Assert.assertTrue("Username should be shown!",
+            browser.isElementPresent("xpath=//p[contains(text(), 'You are signed in as demo.')]"));
+    } 
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+Este é o básico do Drone.
+
+
+
+
+//TODO
+falar do Selenium, drives e diferenças, arquillian, drone e graphene...
